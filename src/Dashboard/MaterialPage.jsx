@@ -1,22 +1,73 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import DashboardLayout from "../Layout/DashboardLayout";
 import {
   RiUploadCloud2Line,
   RiFileTextLine,
+  RiFilePdf2Line,
+  RiFileWord2Line,
+  RiFileExcel2Line,
+  RiFilePpt2Line,
+  RiImage2Line,
   RiEdit2Line,
   RiDeleteBinLine,
   RiCloseLine,
   RiAddLine,
   RiInformationLine,
   RiCheckLine,
+  RiErrorWarningLine,
+  RiCheckboxCircleLine,
+  RiSparkling2Line,
 } from "@remixicon/react";
 
 function MaterialPage() {
   const API_BASE_URL = "https://adapler-api.inidito.my.id";
   const token = localStorage.getItem("authToken");
 
-  const ALLOWED_EXT = [".pdf", ".doc", ".docx", ".ppt", ".pptx"];
-  const MAX_SIZE_MB = 10;
+  // ================= KONFIGURASI FILE YANG DIIZINKAN =================
+  // Sinkron dengan whitelist di backend (allowedMimeTypes), termasuk
+  // dukungan PPT/PPTX yang baru ditambahkan.
+  const ALLOWED_TYPES = [
+    { ext: "pdf", mime: "application/pdf", label: "PDF" },
+    {
+      ext: "docx",
+      mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      label: "DOCX",
+    },
+    {
+      ext: "xlsx",
+      mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      label: "XLSX",
+    },
+    { ext: "xls", mime: "application/vnd.ms-excel", label: "XLS" },
+    { ext: "csv", mime: "text/csv", label: "CSV" },
+    { ext: "png", mime: "image/png", label: "PNG" },
+    { ext: "jpg", mime: "image/jpeg", label: "JPG" },
+    { ext: "jpeg", mime: "image/jpeg", label: "JPEG" },
+    { ext: "webp", mime: "image/webp", label: "WEBP" },
+    {
+      ext: "pptx",
+      mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      label: "PPTX",
+    },
+    { ext: "ppt", mime: "application/vnd.ms-powerpoint", label: "PPT" },
+  ];
+
+  const ALLOWED_EXT = ALLOWED_TYPES.map((t) => `.${t.ext}`);
+  const ALLOWED_MIME = [...new Set(ALLOWED_TYPES.map((t) => t.mime))];
+  const ACCEPT_ATTR = [...ALLOWED_EXT, ...ALLOWED_MIME].join(",");
+  const MAX_SIZE_MB = 5;
+
+  // Badge ringkas yang ditampilkan ke user di area dropzone
+  const DISPLAY_BADGES = [
+    "PDF",
+    "DOCX",
+    "XLSX",
+    "CSV",
+    "PPTX",
+    "PNG",
+    "JPG",
+    "WEBP",
+  ];
 
   // ================= STATE: LIST MATERI =================
   const [materials, setMaterials] = useState([]);
@@ -46,7 +97,56 @@ function MaterialPage() {
 
   useEffect(() => {
     if (token) fetchMaterials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Auto-dismiss notifikasi sukses agar UI terasa lebih hidup/modern
+  useEffect(() => {
+    if (message.text && message.type === "success") {
+      const t = setTimeout(() => setMessage({ text: "", type: "" }), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [message]);
+
+  // ================= HELPER: ICON BERDASARKAN EKSTENSI =================
+  const getFileMeta = (filename = "") => {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    if (ext === "pdf")
+      return {
+        Icon: RiFilePdf2Line,
+        bg: "bg-red-100 dark:bg-red-900/30",
+        color: "text-red-600 dark:text-red-400",
+      };
+    if (["doc", "docx"].includes(ext))
+      return {
+        Icon: RiFileWord2Line,
+        bg: "bg-blue-100 dark:bg-blue-900/30",
+        color: "text-blue-600 dark:text-blue-400",
+      };
+    if (["xls", "xlsx", "csv"].includes(ext))
+      return {
+        Icon: RiFileExcel2Line,
+        bg: "bg-emerald-100 dark:bg-emerald-900/30",
+        color: "text-emerald-600 dark:text-emerald-400",
+      };
+    if (["ppt", "pptx"].includes(ext))
+      return {
+        Icon: RiFilePpt2Line,
+        bg: "bg-orange-100 dark:bg-orange-900/30",
+        color: "text-orange-600 dark:text-orange-400",
+      };
+    if (["png", "jpg", "jpeg", "webp"].includes(ext))
+      return {
+        Icon: RiImage2Line,
+        bg: "bg-purple-100 dark:bg-purple-900/30",
+        color: "text-purple-600 dark:text-purple-400",
+      };
+    return {
+      Icon: RiFileTextLine,
+      bg: "bg-gray-100 dark:bg-gray-700",
+      color: "text-gray-600 dark:text-gray-300",
+    };
+  };
 
   // ================= FUNGSI API: LIST =================
   const fetchMaterials = async () => {
@@ -95,10 +195,15 @@ function MaterialPage() {
 
   // ================= FUNGSI API: UPLOAD =================
   const validateFile = (file) => {
-    const ext = "." + file.name.split(".").pop().toLowerCase();
-    if (!ALLOWED_EXT.includes(ext)) {
+    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+    const extOk = ALLOWED_EXT.includes(ext);
+    const mimeOk = ALLOWED_MIME.includes(file.type);
+
+    // Beberapa browser/OS melaporkan MIME generik (terutama untuk csv/xls),
+    // jadi file dianggap valid jika salah satu dari ekstensi/MIME cocok.
+    if (!extOk && !mimeOk) {
       setMessage({
-        text: "Format file tidak didukung. Gunakan PDF, DOC, DOCX, PPT, atau PPTX.",
+        text: "Format file tidak didukung. Gunakan PDF, DOCX, XLSX, XLS, CSV, PPT/PPTX, PNG, JPG, atau WEBP.",
         type: "error",
       });
       return false;
@@ -161,12 +266,16 @@ function MaterialPage() {
     e.target.value = "";
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) uploadFile(file);
-  };
+  const handleDrop = useCallback(
+    (e) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) uploadFile(file);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   // ================= FUNGSI API: UPDATE =================
   const handleOpenEditModal = () => {
@@ -279,21 +388,42 @@ function MaterialPage() {
 
   return (
     <DashboardLayout>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Material Summary
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Unggah dokumen PDF, PPT, atau DOCX. AI akan merangkumnya dalam
-          hitungan detik.
-        </p>
+      <div className="mb-8 flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+          <RiSparkling2Line size={22} className="text-white" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
+            Material Summary
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-0.5 text-sm">
+            Unggah dokumen atau gambar materi, AI akan merangkumnya dalam
+            hitungan detik.
+          </p>
+        </div>
       </div>
 
       {message.text && (
         <div
-          className={`alert ${message.type === "error" ? "alert-error bg-red-50 text-red-600" : "alert-success bg-green-50 text-green-600"} text-sm p-3 mb-6 rounded-lg border-none`}
+          role="alert"
+          className={`flex items-start gap-3 text-sm p-4 mb-6 rounded-xl border animate-[fadeIn_0.2s_ease-out] ${
+            message.type === "error"
+              ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-100 dark:border-red-900/40"
+              : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40"
+          }`}
         >
-          {message.text}
+          {message.type === "error" ? (
+            <RiErrorWarningLine size={20} className="shrink-0 mt-0.5" />
+          ) : (
+            <RiCheckboxCircleLine size={20} className="shrink-0 mt-0.5" />
+          )}
+          <span className="flex-1">{message.text}</span>
+          <button
+            onClick={() => setMessage({ text: "", type: "" })}
+            className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+          >
+            <RiCloseLine size={18} />
+          </button>
         </div>
       )}
 
@@ -304,7 +434,7 @@ function MaterialPage() {
             type="file"
             ref={fileInputRef}
             className="hidden"
-            accept=".pdf,.doc,.docx,.ppt,.pptx"
+            accept={ACCEPT_ATTR}
             onChange={handleFileInputChange}
           />
 
@@ -316,17 +446,17 @@ function MaterialPage() {
             }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center text-center transition-colors cursor-pointer min-h-[260px] ${
+            className={`relative overflow-hidden border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center text-center transition-all duration-200 cursor-pointer min-h-[280px] ${
               isDragging
-                ? "border-blue-500 bg-blue-100/60 dark:bg-blue-900/30"
-                : "border-blue-300 dark:border-blue-700/50 bg-blue-50/50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700/50"
+                ? "border-blue-500 bg-blue-100/60 dark:bg-blue-900/30 scale-[1.01]"
+                : "border-blue-300 dark:border-blue-700/50 bg-blue-50/50 dark:bg-gray-800 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700/50"
             }`}
           >
             {isUploading ? (
               <>
                 <span className="loading loading-spinner loading-lg text-blue-500 mb-4"></span>
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                  Mengunggah & meringkas...
+                  Mengunggah &amp; meringkas...
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                   Mohon tunggu sebentar
@@ -334,22 +464,36 @@ function MaterialPage() {
               </>
             ) : (
               <>
-                <RiUploadCloud2Line size={48} className="text-blue-500 mb-4" />
+                <div
+                  className={`w-16 h-16 rounded-2xl bg-white dark:bg-gray-900 shadow-sm flex items-center justify-center mb-4 transition-transform duration-200 ${
+                    isDragging ? "scale-110" : ""
+                  }`}
+                >
+                  <RiUploadCloud2Line size={30} className="text-blue-500" />
+                </div>
                 <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
                   Tarik file ke sini
                 </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                  Mendukung file .pdf, .docx, .ppt
-                  <br />
-                  (Maksimal kapasitas: {MAX_SIZE_MB} MB)
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                  Maksimal kapasitas {MAX_SIZE_MB} MB
                 </p>
+                <div className="flex flex-wrap justify-center gap-1.5 mb-6 max-w-xs">
+                  {DISPLAY_BADGES.map((label) => (
+                    <span
+                      key={label}
+                      className="text-[11px] font-semibold tracking-wide px-2 py-1 rounded-md bg-white/70 dark:bg-gray-900/60 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     fileInputRef.current?.click();
                   }}
-                  className="btn bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
+                  className="btn bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md shadow-blue-500/20"
                 >
                   Pilih Dokumen
                 </button>
@@ -376,12 +520,13 @@ function MaterialPage() {
                 <ul className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1">
                   {materials.map((item) => {
                     const isActive = selectedMaterial?.id === item.id;
+                    const { Icon, bg, color } = getFileMeta(item.judul);
                     return (
                       <li key={item.id}>
                         <button
                           type="button"
                           onClick={() => fetchMaterialDetail(item.id)}
-                          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-150 ${
                             isActive
                               ? "bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-200 dark:ring-blue-800"
                               : "hover:bg-slate-50 dark:hover:bg-gray-700/50"
@@ -391,10 +536,10 @@ function MaterialPage() {
                             className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                               isActive
                                 ? "bg-blue-600 text-white"
-                                : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                                : `${bg} ${color}`
                             }`}
                           >
-                            <RiFileTextLine size={18} />
+                            <Icon size={18} />
                           </div>
                           <div className="flex flex-col truncate">
                             <span
@@ -434,9 +579,18 @@ function MaterialPage() {
               <>
                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-100 dark:border-gray-700">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-xl text-red-600 dark:text-red-400 shrink-0">
-                      <RiFileTextLine size={24} />
-                    </div>
+                    {(() => {
+                      const { Icon, bg, color } = getFileMeta(
+                        selectedMaterial.judul,
+                      );
+                      return (
+                        <div
+                          className={`p-3 rounded-xl shrink-0 ${bg} ${color}`}
+                        >
+                          <Icon size={24} />
+                        </div>
+                      );
+                    })()}
                     <div className="truncate">
                       <h2 className="card-title text-lg text-gray-900 dark:text-white truncate">
                         {selectedMaterial.judul}
@@ -658,7 +812,7 @@ function MaterialPage() {
             </form>
           </div>
           <div
-            className="modal-backdrop bg-black/40"
+            className="modal-backdrop bg-black/40 backdrop-blur-sm"
             onClick={() => setIsEditModalOpen(false)}
           ></div>
         </div>
