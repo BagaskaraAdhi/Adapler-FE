@@ -14,7 +14,7 @@ import {
 import { Link } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
-// 1. Import useTheme dari file context-mu
+import logo from "./assets/logo.png";
 import { useTheme } from "./Component/ThemeContext";
 
 const features = [
@@ -110,8 +110,16 @@ function LandingPage() {
         data-aos-duration="500"
       >
         <div className="navbar-start">
-          <a className="text-3xl font-black text-blue-600 dark:text-blue-400 italic cursor-pointer tracking-tight">
-            Adapler<span className="text-gray-800 dark:text-white">AI</span>
+          <a className="flex items-center gap-2 cursor-pointer">
+            <img
+              src={logo}
+              alt="Adapler AI Logo"
+              className="w-10 h-10 object-contain"
+            />
+            <span className="text-3xl font-black text-blue-600 dark:text-white italic tracking-tight">
+              Adapler
+              <span className="text-gray-800 dark:text-blue-400">AI</span>
+            </span>
           </a>
         </div>
 
