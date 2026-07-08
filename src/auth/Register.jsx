@@ -450,7 +450,7 @@ function Register() {
                 ATAU
               </div>
 
-              <div className="form-control mb-4">
+              {/* <div className="form-control mb-4">
                 <button
                   type="button"
                   className="btn bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 w-full text-base font-bold flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 shadow-sm transition-colors"
@@ -459,7 +459,7 @@ function Register() {
                   <RiGoogleFill className="text-red-500" size={24} />
                   Daftar dengan Google
                 </button>
-              </div>
+              </div> */}
 
               <div className="text-center">
                 <p className="text-gray-500 dark:text-gray-400 text-sm">

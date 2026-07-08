@@ -1,131 +1,267 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import DashboardLayout from "../Layout/DashboardLayout";
 import {
   RiSendPlane2Line,
-  RiBookOpenLine,
-  RiCheckLine,
+  RiRobot2Line,
+  RiUserLine,
+  RiSparkling2Line,
 } from "@remixicon/react";
 
+// ---------- Markdown ringan (tanpa dependency tambahan) ----------
+function parseInline(text) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong
+        key={i}
+        className="font-semibold text-indigo-700 dark:text-indigo-300"
+      >
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    ),
+  );
+}
+
+function renderMessageContent(text) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  const elements = [];
+  let listItems = [];
+  let listType = null;
+
+  const flushList = (key) => {
+    if (listItems.length) {
+      const Tag = listType === "ol" ? "ol" : "ul";
+      elements.push(
+        <Tag
+          key={key}
+          className={`${
+            listType === "ol" ? "list-decimal" : "list-disc"
+          } list-inside space-y-1 my-1.5 pl-1`}
+        >
+          {listItems}
+        </Tag>,
+      );
+      listItems = [];
+      listType = null;
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    const bullet = trimmed.match(/^[*-]\s+(.*)/);
+    const numbered = trimmed.match(/^\d+\.\s+(.*)/);
+
+    if (bullet) {
+      if (listType !== "ul") flushList(`l-${idx}`);
+      listType = "ul";
+      listItems.push(<li key={idx}>{parseInline(bullet[1])}</li>);
+    } else if (numbered) {
+      if (listType !== "ol") flushList(`l-${idx}`);
+      listType = "ol";
+      listItems.push(<li key={idx}>{parseInline(numbered[1])}</li>);
+    } else {
+      flushList(`l-${idx}`);
+      if (trimmed === "") {
+        elements.push(<div key={idx} className="h-2" />);
+      } else {
+        elements.push(
+          <p key={idx} className="leading-relaxed">
+            {parseInline(line)}
+          </p>,
+        );
+      }
+    }
+  });
+  flushList("l-end");
+  return elements;
+}
+
+// ---------- Komponen utama ----------
 function AITutorPage() {
+  const API_BASE_URL = "https://adapler-api.inidito.my.id";
+  const token = localStorage.getItem("authToken");
+  const [messages, setMessages] = useState([]);
+  const [inputChat, setInputChat] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const scrollRef = useRef(null);
+
+  useEffect(() => {
+    fetchChatHistory();
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isChatLoading]);
+
+  const fetchChatHistory = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/chat-history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) setMessages(data.data.chatHistory || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputChat.trim() || isChatLoading) return;
+    const userMsg = { role: "user", pesan: inputChat };
+    setMessages((prev) => [...prev, userMsg]);
+    setInputChat("");
+    setIsChatLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/chat-history`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ pesan: userMsg.pesan }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "model", pesan: data.data.reply },
+        ]);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const suggestions = [
+    "Jelaskan konsep fotosintesis secara sederhana",
+    "Bantu aku memahami teorema Pythagoras",
+    "Apa perbedaan revolusi dan rotasi bumi?",
+  ];
+
   return (
     <DashboardLayout>
-      <div className="mb-8 flex justify-between items-end">
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
+          <RiRobot2Line size={22} className="text-white" />
+        </div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            AI Tutor & Quiz Generator
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+            AI Tutor Assistant
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            Tanyakan materi yang sulit atau uji pemahamanmu dengan latihan soal
-            otomatis.
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Diskusikan materi pelajaran dengan AI, kapan saja.
           </p>
         </div>
-        <button className="btn bg-orange-500 hover:bg-orange-600 text-white border-none shadow-md">
-          <RiBookOpenLine size={20} /> Generate Quiz Baru
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Antarmuka Chat AI Tutor */}
-        <div className="card bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm rounded-2xl flex flex-col h-[600px]">
-          <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50 rounded-t-2xl">
-            <h2 className="font-bold text-gray-900 dark:text-white">
-              Tutor Assistant
-            </h2>
-            <span className="badge bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-none badge-sm">
-              Online
-            </span>
-          </div>
+      {/* Chat card */}
+      <div className="flex h-[650px] flex-col overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        {/* Messages */}
+        <div className="flex-1 space-y-4 overflow-y-auto bg-gradient-to-b from-gray-50 to-white px-5 py-6 dark:from-gray-900 dark:to-gray-900">
+          {messages.length === 0 && !isChatLoading && (
+            <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25">
+                <RiSparkling2Line size={28} className="text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-800 dark:text-gray-100">
+                  Mulai percakapan dengan AI Tutor
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Coba salah satu pertanyaan berikut:
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-2">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setInputChat(s)}
+                    className="rounded-full border border-indigo-100 bg-indigo-50 px-3.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/40 dark:bg-indigo-950/40 dark:text-indigo-300"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Area Percakapan */}
-          <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-50/50 dark:bg-gray-800">
-            <div className="chat chat-start">
-              <div className="chat-bubble bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm">
-                Halo! Saya siap membantu. Ingin bahas materi apa hari ini?
+          {messages.map((m, i) => {
+            const isUser = m.role === "user";
+            return (
+              <div
+                key={i}
+                className={`flex items-end gap-2.5 ${isUser ? "flex-row-reverse" : ""}`}
+              >
+                <div
+                  className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full shadow-sm ${
+                    isUser
+                      ? "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+                      : "bg-gradient-to-br from-indigo-500 to-violet-600 text-white"
+                  }`}
+                >
+                  {isUser ? (
+                    <RiUserLine size={16} />
+                  ) : (
+                    <RiRobot2Line size={16} />
+                  )}
+                </div>
+                <div
+                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                    isUser
+                      ? "rounded-br-md bg-gradient-to-br from-indigo-500 to-violet-600 text-white"
+                      : "rounded-bl-md border border-gray-100 bg-white text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  }`}
+                >
+                  {renderMessageContent(m.pesan)}
+                </div>
               </div>
-            </div>
-            <div className="chat chat-end">
-              <div className="chat-bubble bg-blue-600 text-white shadow-md">
-                Tolong jelaskan secara singkat perbedaan Array dan Linked List.
-              </div>
-            </div>
-            <div className="chat chat-start">
-              <div className="chat-bubble bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 shadow-sm">
-                Tentu! **Array** menyimpan data secara berurutan di memori,
-                sehingga pencarian indeks lebih cepat, namun ukurannya tetap.
-                Sedangkan **Linked List** menyimpan data dengan *pointer* yang
-                menghubungkan setiap elemen, sehingga lebih fleksibel dalam
-                menambah atau menghapus data, namun lebih lambat dalam pencarian
-                indeks.
-              </div>
-            </div>
-          </div>
+            );
+          })}
 
-          {/* Area Input Chat */}
-          <div className="p-4 bg-white dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl">
-            <div className="flex gap-2 relative">
-              <input
-                type="text"
-                placeholder="Tanyakan sesuatu..."
-                className="input input-bordered w-full pr-12 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-              />
-              <button className="btn btn-square bg-blue-600 hover:bg-blue-700 text-white border-none absolute right-0 rounded-l-none">
-                <RiSendPlane2Line size={20} />
-              </button>
+          {isChatLoading && (
+            <div className="flex items-end gap-2.5">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
+                <RiRobot2Line size={16} />
+              </div>
+              <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-gray-100 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.3s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400 [animation-delay:-0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" />
+              </div>
             </div>
-          </div>
+          )}
+          <div ref={scrollRef} />
         </div>
 
-        {/* Area Quiz Generator */}
-        <div className="card bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 shadow-sm rounded-2xl flex flex-col h-[600px] overflow-y-auto">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="font-bold text-lg text-gray-900 dark:text-white">
-                Latihan Soal: Struktur Data
-              </h2>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Skor: 0/3
-              </span>
-            </div>
-
-            <div className="space-y-6">
-              {/* Soal 1 */}
-              <div className="p-5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900/50">
-                <p className="font-medium text-gray-800 dark:text-gray-200 mb-4">
-                  1. Struktur data apa yang menggunakan prinsip LIFO (Last In
-                  First Out)?
-                </p>
-                <div className="space-y-2 text-gray-700 dark:text-gray-300">
-                  <label className="flex items-center gap-3 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
-                    <input
-                      type="radio"
-                      name="q1"
-                      className="radio radio-primary radio-sm"
-                    />
-                    <span>Queue</span>
-                  </label>
-                  <label className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg cursor-pointer transition-colors">
-                    <input
-                      type="radio"
-                      name="q1"
-                      className="radio radio-success radio-sm"
-                      defaultChecked
-                    />
-                    <span className="text-green-800 dark:text-green-400 font-medium">
-                      Stack
-                    </span>
-                    <RiCheckLine className="ml-auto text-green-600 dark:text-green-400" />
-                  </label>
-                </div>
-
-                {/* Kotak Pembahasan */}
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 text-sm text-gray-700 dark:text-gray-300">
-                  <strong>Pembahasan:</strong> Stack beroperasi seperti tumpukan
-                  buku, data terakhir yang dimasukkan akan menjadi yang pertama
-                  kali keluar.
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* Input */}
+        <div className="flex gap-2 border-t border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+          <input
+            value={inputChat}
+            onChange={(e) => setInputChat(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full rounded-full border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:focus:bg-gray-800"
+            placeholder="Tanya sesuatu..."
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={isChatLoading || !inputChat.trim()}
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md shadow-indigo-500/25 transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <RiSendPlane2Line size={18} />
+          </button>
         </div>
       </div>
     </DashboardLayout>

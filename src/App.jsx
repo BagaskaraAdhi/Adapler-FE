@@ -6,18 +6,16 @@ import {
   Navigate,
 } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
-
 import LandingPage from "./LandingPage";
 import Login from "./auth/Login";
 import Register from "./auth/Register";
 import ForgotPassword from "./auth/ForgotPassword";
-
 import Dashboard from "./Dashboard/dashboard";
 import TaskPage from "./Dashboard/TaskPage";
 import MaterialPage from "./Dashboard/MaterialPage";
 import AITutorPage from "./Dashboard/AITutorPage";
 import ProfilePage from "./Dashboard/ProfilePage";
-
+import QuizPage from "./Dashboard/QuizPage";
 import { ThemeProvider } from "./Component/ThemeContext";
 
 // ==================== Protected Route ====================
@@ -154,6 +152,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <ProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/quiz-generate"
+            element={
+              <ProtectedRoute>
+                <QuizPage />
               </ProtectedRoute>
             }
           />

@@ -5,6 +5,7 @@ import {
   RiCalendarCheckLine,
   RiFileTextLine,
   RiRobot2Line,
+  RiQuestionnaireLine,
   RiLogoutBoxRLine,
 } from "@remixicon/react";
 import logo from "../assets/logo.png";
@@ -13,7 +14,8 @@ const menuItems = [
   { name: "Dashboard", icon: RiDashboardLine, path: "/dashboard" },
   { name: "Study Planner", icon: RiCalendarCheckLine, path: "/tasks" },
   { name: "Material Summary", icon: RiFileTextLine, path: "/materials" },
-  { name: "AI Tutor & Quiz", icon: RiRobot2Line, path: "/ai-tutor" },
+  { name: "AI Tutor", icon: RiRobot2Line, path: "/ai-tutor" },
+  { name: "Quiz Generate", icon: RiQuestionnaireLine, path: "/quiz-generate" },
 ];
 
 function Sidebar({ isSidebarOpen }) {
@@ -77,7 +79,6 @@ function Sidebar({ isSidebarOpen }) {
       <div
         className={`p-0 min-h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transition-all duration-300 ease-in-out ${isSidebarOpen ? "w-72" : "w-72 lg:w-[88px]"}`}
       >
-        {/* Logo Section */}
         <div
           className={`hidden lg:flex flex-col pt-5 pb-2 ${isSidebarOpen ? "px-6 items-start" : "px-0 items-center justify-center"}`}
         >
@@ -85,13 +86,11 @@ function Sidebar({ isSidebarOpen }) {
             to="/dashboard"
             className="text-2xl font-black italic tracking-tight text-blue-600 dark:text-blue-400 mb-4 h-8 flex items-center gap-2"
           >
-            {/* Logo Selalu Muncul */}
             <img
               src={logo}
               alt="Adapler AI"
               className="w-8 h-8 object-contain"
             />
-            {/* Teks hanya muncul jika sidebar terbuka */}
             <span
               className={`transition-opacity duration-300 ${isSidebarOpen ? "opacity-100" : "opacity-0 hidden"}`}
             >
