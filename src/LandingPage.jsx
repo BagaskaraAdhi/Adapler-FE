@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   RiCalendarScheduleLine,
   RiFileTextLine,
@@ -10,12 +10,16 @@ import {
   RiUploadCloud2Line,
   RiMoonLine,
   RiSunLine,
+  RiPencilLine,
+  RiLightbulbFlashLine,
+  RiFireLine,
 } from "@remixicon/react";
 import { Link } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import logo from "./assets/logo.png";
 import { useTheme } from "./Component/ThemeContext";
+import CursorSparkle from "./Component/CursorSparkle";
 
 const features = [
   {
@@ -89,9 +93,86 @@ const testimonials = [
   },
 ];
 
+// Kata yang berputar di headline Hero, memberi kesan dinamis tanpa berlebihan
+const rotatingWords = ["Cerdas", "Efisien", "Fokus", "Konsisten"];
+
+// Ikon dekoratif yang melayang di sekitar Hero — posisi, ikon, dan delay animasi
+// masing-masing berbeda supaya gerakannya tidak terlihat seragam/kaku.
+const floatingIcons = [
+  {
+    icon: RiBookOpenLine,
+    position: "top-20 left-[6%]",
+    delay: "0s",
+    duration: "5.5s",
+    depth: 14,
+  },
+  {
+    icon: RiLightbulbFlashLine,
+    position: "top-32 right-[8%]",
+    delay: "0.8s",
+    duration: "6.5s",
+    depth: -18,
+  },
+  {
+    icon: RiPencilLine,
+    position: "bottom-24 left-[10%]",
+    delay: "1.4s",
+    duration: "5s",
+    depth: -12,
+  },
+  {
+    icon: RiGraduationCapLine,
+    position: "bottom-16 right-[6%]",
+    delay: "0.4s",
+    duration: "6s",
+    depth: 16,
+  },
+];
+
+// Hook kecil untuk animasi "count up" pada angka statistik, jalan sekali
+// ketika `trigger` menjadi true (dipicu oleh IntersectionObserver di section stats).
+function useCountUp(end, trigger, duration = 1400) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    if (!trigger) return;
+    let frame;
+    let startTime = null;
+
+    const step = (timestamp) => {
+      if (startTime === null) startTime = timestamp;
+      const progress = Math.min((timestamp - startTime) / duration, 1);
+      setValue(progress * end);
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [trigger, end, duration]);
+
+  return value;
+}
+
 function LandingPage() {
   // 2. Ambil state global dari ThemeContext
   const { isDarkMode, setIsDarkMode } = useTheme();
+
+  // Progress bar scroll di bagian atas halaman
+  const [scrollProgress, setScrollProgress] = useState(0);
+
+  // Rotating word di headline Hero
+  const [wordIndex, setWordIndex] = useState(0);
+
+  // Parallax ringan untuk ikon melayang di Hero, mengikuti posisi mouse
+  const heroRef = useRef(null);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
+  // Trigger count-up untuk section statistik
+  const statsRef = useRef(null);
+  const [statsVisible, setStatsVisible] = useState(false);
+  const akurasi = useCountUp(95, statsVisible);
+  const kepuasan = useCountUp(4.9, statsVisible);
+  const responTime = useCountUp(3, statsVisible, 1000);
 
   useEffect(() => {
     AOS.init({
@@ -101,8 +182,96 @@ function LandingPage() {
     });
   }, []);
 
+  // Update progress bar tiap kali user scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight =
+        document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(docHeight > 0 ? (scrollTop / docHeight) * 100 : 0);
+    };
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Ganti kata di headline setiap 2.2 detik
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setWordIndex((i) => (i + 1) % rotatingWords.length);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Nyalakan count-up saat section statistik masuk viewport
+  useEffect(() => {
+    const el = statsRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setStatsVisible(true);
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleHeroMouseMove = (e) => {
+    if (!heroRef.current) return;
+    const rect = heroRef.current.getBoundingClientRect();
+    setMousePos({
+      x: (e.clientX - rect.left) / rect.width - 0.5,
+      y: (e.clientY - rect.top) / rect.height - 0.5,
+    });
+  };
+
   return (
     <div className="font-sans bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 overflow-hidden transition-colors duration-300">
+      {/* Efek sparkle yang mengikuti mouse di seluruh halaman */}
+      <CursorSparkle />
+
+      {/* Progress bar scroll, gaya "highlighter" menandai progres membaca halaman */}
+      <div className="fixed top-0 left-0 w-full h-1 bg-blue-100/60 dark:bg-gray-800 z-[60]">
+        <div
+          className="h-full bg-gradient-to-r from-orange-400 via-orange-500 to-blue-500 transition-[width] duration-150 ease-out"
+          style={{ width: `${scrollProgress}%` }}
+        />
+      </div>
+
+      {/* Keyframe untuk animasi tambahan di halaman ini */}
+      <style>{`
+        @keyframes floaty {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-14px) rotate(6deg); }
+        }
+        .floaty-el {
+          animation: floaty 5s ease-in-out infinite;
+        }
+        @keyframes fadeSlideWord {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        .word-rotate {
+          display: inline-block;
+          animation: fadeSlideWord 0.5s ease;
+        }
+        @keyframes pulseGlow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.35); }
+          50% { box-shadow: 0 0 0 10px rgba(249, 115, 22, 0); }
+        }
+        .streak-badge {
+          animation: pulseGlow 2.6s ease-in-out infinite;
+        }
+        @keyframes shineSweep {
+          0% { transform: translateX(-120%) skewX(-20deg); }
+          100% { transform: translateX(220%) skewX(-20deg); }
+        }
+        .shine-sweep {
+          animation: shineSweep 3.8s ease-in-out infinite;
+        }
+      `}</style>
+
       {/* ================= NAVBAR ================= */}
       <nav
         className="navbar bg-white/90 dark:bg-gray-900/90 backdrop-blur-md shadow-sm sticky top-0 z-50 px-6 lg:px-12 border-b border-blue-50 dark:border-gray-800 transition-colors duration-300"
@@ -176,14 +345,45 @@ function LandingPage() {
       {/* Hero, About, Features, dll tetap sama, pastikan semua class dark: ditambahkan seperti contoh di bawah ini */}
 
       {/* ================= HERO ================= */}
-      <section className="hero min-h-[90vh] bg-gradient-to-b from-blue-50 via-white to-white dark:from-gray-800 dark:via-gray-900 dark:to-gray-900 transition-colors duration-300">
-        <div className="hero-content flex-col text-center">
+      <section
+        ref={heroRef}
+        onMouseMove={handleHeroMouseMove}
+        className="hero min-h-[90vh] relative bg-gradient-to-b from-blue-50 via-white to-white dark:from-gray-800 dark:via-gray-900 dark:to-gray-900 transition-colors duration-300"
+      >
+        {/* Ikon dekoratif melayang, mengikuti pergerakan mouse secara halus (parallax) */}
+        {floatingIcons.map((item, index) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={index}
+              className={`absolute ${item.position} hidden lg:block pointer-events-none`}
+              style={{
+                transform: `translate(${mousePos.x * item.depth}px, ${
+                  mousePos.y * item.depth
+                }px)`,
+                transition: "transform 0.25s ease-out",
+              }}
+            >
+              <div
+                className="floaty-el w-14 h-14 rounded-2xl bg-white dark:bg-gray-800 shadow-lg shadow-blue-900/10 dark:shadow-none border border-blue-50 dark:border-gray-700 flex items-center justify-center"
+                style={{
+                  animationDelay: item.delay,
+                  animationDuration: item.duration,
+                }}
+              >
+                <Icon size={26} className="text-blue-500 dark:text-blue-400" />
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="hero-content flex-col text-center relative z-10">
           <div
             className="badge bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-none badge-lg mb-5 px-4 py-3 font-semibold transition-colors"
             data-aos="zoom-in"
             data-aos-delay="200"
           >
-            🚀 Solusi Belajar Berbasis AI
+            Solusi Belajar Berbasis AI
           </div>
 
           <h1
@@ -191,10 +391,14 @@ function LandingPage() {
             data-aos="fade-up"
             data-aos-delay="400"
           >
-            Tingkatkan{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-blue-400 dark:from-blue-400 dark:to-blue-300">
-              Produktivitas Belajar
-            </span>{" "}
+            Belajar Lebih{" "}
+            <span
+              key={wordIndex}
+              className="word-rotate text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-blue-400 dark:from-blue-400 dark:to-blue-300"
+            >
+              {rotatingWords[wordIndex]}
+            </span>
+            <br />
             Bersama Adapler
           </h1>
 
@@ -219,6 +423,17 @@ function LandingPage() {
             >
               Mulai Sekarang
             </Link>
+          </div>
+
+          <div
+            className="streak-badge mt-8 inline-flex items-center gap-2 bg-white dark:bg-gray-800 border border-orange-100 dark:border-gray-700 rounded-full px-5 py-2.5 shadow-md"
+            data-aos="fade-up"
+            data-aos-delay="1000"
+          >
+            <RiFireLine size={18} className="text-orange-500" />
+            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+              12.500+ pelajar sedang belajar bareng Adapler minggu ini
+            </span>
           </div>
         </div>
       </section>
@@ -248,6 +463,67 @@ function LandingPage() {
               pelajar, maupun siapa saja yang ingin meningkatkan produktivitas
               belajar melalui teknologi AI.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= FEATURES ================= */}
+      <section
+        id="Features"
+        className="py-24 bg-white dark:bg-gray-900 transition-colors duration-300"
+      >
+        <div className="max-w-7xl mx-auto px-6">
+          <h2
+            className="text-center text-5xl font-bold mb-4 text-gray-900 dark:text-white transition-colors"
+            data-aos="fade-up"
+          >
+            Semua yang Kamu Butuhkan untuk Belajar
+          </h2>
+          <p
+            className="text-center text-gray-600 dark:text-gray-400 mb-16 max-w-3xl mx-auto transition-colors"
+            data-aos="fade-up"
+            data-aos-delay="100"
+          >
+            Satu platform, enam cara berbeda untuk membuat waktu belajarmu lebih
+            terarah.
+          </p>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {features.map((item, index) => {
+              const Icon = item.icon;
+              const isBlue = index % 2 === 0;
+              return (
+                <div
+                  key={index}
+                  className="group p-8 rounded-2xl border border-blue-50 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300"
+                  data-aos="fade-up"
+                  data-aos-delay={(index % 3) * 150}
+                >
+                  <div
+                    className={`w-14 h-14 rounded-xl flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6 ${
+                      isBlue
+                        ? "bg-blue-50 dark:bg-blue-900/20"
+                        : "bg-orange-50 dark:bg-orange-900/20"
+                    }`}
+                  >
+                    <Icon
+                      size={28}
+                      className={
+                        isBlue
+                          ? "text-blue-600 dark:text-blue-400"
+                          : "text-orange-500 dark:text-orange-400"
+                      }
+                    />
+                  </div>
+                  <h3 className="font-bold text-xl text-gray-900 dark:text-white mb-2 transition-colors">
+                    {item.title}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 leading-7 transition-colors">
+                    {item.desc}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -395,6 +671,7 @@ function LandingPage() {
             </div>
 
             <div
+              ref={statsRef}
               className="stats stats-vertical shadow-xl shadow-blue-900/5 bg-white dark:bg-gray-800 border border-blue-50 dark:border-gray-700 transition-colors duration-300"
               data-aos="fade-left"
               data-aos-delay="300"
@@ -404,7 +681,7 @@ function LandingPage() {
                   Akurasi AI
                 </div>
                 <div className="stat-value text-blue-600 dark:text-blue-400 transition-colors">
-                  95%
+                  {Math.round(akurasi)}%
                 </div>
               </div>
               <div className="stat">
@@ -412,7 +689,7 @@ function LandingPage() {
                   Kepuasan Pengguna
                 </div>
                 <div className="stat-value text-orange-500 dark:text-orange-400 transition-colors">
-                  4.9★
+                  {kepuasan.toFixed(1)}★
                 </div>
               </div>
               <div className="stat">
@@ -420,7 +697,7 @@ function LandingPage() {
                   Respon AI
                 </div>
                 <div className="stat-value text-gray-800 dark:text-white transition-colors">
-                  &lt; 3 detik
+                  &lt; {Math.round(responTime)} detik
                 </div>
               </div>
             </div>
@@ -441,7 +718,7 @@ function LandingPage() {
             {testimonials.map((item, index) => (
               <div
                 key={index}
-                className="card bg-blue-50/50 dark:bg-gray-800/50 border border-blue-100 dark:border-gray-700 shadow-sm transition-colors duration-300"
+                className="card bg-blue-50/50 dark:bg-gray-800/50 border border-blue-100 dark:border-gray-700 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
                 data-aos="fade-up"
                 data-aos-delay={index * 200}
               >
@@ -537,11 +814,16 @@ function LandingPage() {
       <section className="py-24 bg-white dark:bg-gray-900 transition-colors duration-300">
         <div className="max-w-6xl mx-auto px-6">
           <div
-            className="hero rounded-3xl bg-gradient-to-r from-blue-700 to-blue-500 dark:from-blue-900 dark:to-blue-700 text-white shadow-2xl shadow-blue-900/20 dark:shadow-none transition-colors duration-300"
+            className="hero relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-700 to-blue-500 dark:from-blue-900 dark:to-blue-700 text-white shadow-2xl shadow-blue-900/20 dark:shadow-none transition-colors duration-300"
             data-aos="zoom-in"
             data-aos-duration="1000"
           >
-            <div className="hero-content text-center py-20">
+            {/* Efek sapuan cahaya halus, memberi kesan "hidup" pada CTA */}
+            <div className="absolute inset-0 pointer-events-none">
+              <div className="shine-sweep absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            </div>
+
+            <div className="hero-content text-center py-20 relative z-10">
               <div>
                 <h2 className="text-5xl font-bold">
                   Siap Belajar Lebih Pintar?
